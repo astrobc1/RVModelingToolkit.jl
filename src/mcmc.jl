@@ -1,6 +1,18 @@
 using AffineInvariantMCMC
 using Statistics, NaNStatistics
 
+"""
+    run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=0.01, n_min_steps=1000, n_τs_thresh=40, check_every=100, n_max_steps=100_000)
+Performs an MCMC analysis with `n_burn_steps` followed by a dynamic number of steps, bounded by `n_min_steps` and `n_max_steps`. Convergence is determined through measuring the median auto-correlation time (# steps). Returns a NamedTuple with fields:
+`pbest::Parameters` The set of parameters that yielded the best log-likelihood from all chains.
+`lnLbest::Float64` The corresponding log-likelihood for the best tested parameters.
+`pmed::Int` The parameters corresponding to the 50th percentile of each distribution.
+`lnLmed::Matrix{Float64}` The corresponding log-likelihood for the median parameters.
+`n_steps::Int` The number of MCMC steps performed (ignoring burn-in).
+`τs::Vector{Float64}` The median auto-correlation times of each step.
+`chains::Matrix{Float64}` The flattened MCMC chain of shape = `(n_steps, n_vary_parameters)`
+`lnLs::Vector{Float64}` The corresponding log-likelihoods for the chain.
+"""
 function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=0.01, n_min_steps=1000, n_τs_thresh=40, check_every=100, n_max_steps=100_000)
 
     vecs = to_vecs(p0)
@@ -11,7 +23,7 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
     pbest = deepcopy(p0)
     pmed = deepcopy(p0)
 
-    obj_wrapper = (x) -> begin
+    obj_wrapper = (x::Vector{Float64}) -> begin
         for i ∈ eachindex(x)
             ptest[pnamesv[i]].value = x[i]
         end
@@ -44,6 +56,8 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
     line_old = ""
     ii = 0
 
+    ti = time()
+
     for i=1:n_art_steps
 
         ii = (i - 1) * check_every + 1
@@ -61,9 +75,9 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
         τmed = nanmedian(τs)
         push!(τmeds, τmed)
         τrel = abs(τold - τmed) / τmed
-        line = " τ = $(round(τmed, digits=5)) / x $(n_τs_thresh), rel Δτ = $(round(τrel, digits=5)) / $(round(τrel_thresh, digits=5)), steps = $(n_min_steps) / $(ii) / $(n_max_steps)"
-        print("\r" * repeat(" ", length(line_old)))
-        print("\r τ = $(round(τmed, digits=5)) / x $(n_τs_thresh), rel Δτ = $(round(τrel, digits=5)) / $(round(τrel_thresh, digits=5)), steps = $(n_min_steps) / $(ii) / $(n_max_steps)")
+        Δt = time() - ti
+        line = " τ = $(round(τmed, digits=5)) / x $(n_τs_thresh), rel Δτ = $(round(τrel, digits=5)) / $(round(τrel_thresh, digits=5)), steps = $(n_min_steps) / $(ii) / $(n_max_steps), $(round(ii/Δt, digits=1)) steps / s"
+        print("\r" * line * "     ")
         if ((τrel < τrel_thresh) && (ii > n_min_steps) && (ii > τmed * n_τs_thresh))
             println("\nConverged!")
             break
@@ -84,11 +98,11 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
     k = argmax(flat_lnLs)
     pbest_vec = flat_chains[k, :]
     pmed_vec = vecs.values[vi]
-    unc = Dict{String, NamedTuple{(:plus, :minus), Tuple{Float64, Float64}}}()
+    unc = Dict{String, NamedTuple{(:minus, :plus), Tuple{Float64, Float64}}}()
     for i ∈ eachindex(pmed_vec)
-        v, _unc = chain_uncertainty(flat_chains[:, i], [15.9, 50, 84.1] ./ 100)
-        pmed_vec[i] = v
-        unc[pnamesv[i]] = (;plus=_unc[1], minus=_unc[2])
+        r = chain_uncertainty(flat_chains[:, i], [15.9, 50, 84.1])
+        pmed_vec[i] = r.value
+        unc[pnamesv[i]] = (;minus=r.minus, plus=r.plus)
     end
     
     for i ∈ eachindex(pbest_vec)
@@ -101,16 +115,17 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
     lnLmed = obj_wrapper(pmed_vec)
 
     # Get result
-    mcmc_result = (;pbest=pbest, lnLbest=lnLbest, pmed=pmed, lnLmed=lnLmed, n_steps=n_steps, τs=τmeds, chains=flat_chains, lnLs=flat_lnLs)
+    mcmc_result = (;pbest=pbest, lnLbest=lnLbest, pmed=pmed, lnLmed=lnLmed, n_steps=n_steps, τs=τmeds, chains=flat_chains, lnLs=flat_lnLs, unc=unc)
 
     return mcmc_result
 end
 
 function chain_uncertainty(flat_chain, p=[15.9, 50, 84.1])
-    par_quantiles = quantile(flat_chain, p)
+    par_quantiles = quantile(flat_chain, p ./ 100)
     v = par_quantiles[2]
     unc = diff(par_quantiles)
-    return v, unc
+    r = (;value=v, minus=unc[1], plus=unc[2])
+    return r
 end
 
 function get_initial_walkers(post::RVPosterior, p0::Parameters)

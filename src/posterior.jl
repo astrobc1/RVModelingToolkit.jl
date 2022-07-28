@@ -1,9 +1,12 @@
-export RVPosterior
+export RVPosterior, compute_bic, compute_aicc
 
 struct RVPosterior
     likes::Dict{String, RVLikelihood}
 end
 
+"""
+    Construct an empty RVPosterior object 
+"""
 RVPosterior() = RVPosterior(Dict{String, RVLikelihood}())
 
 Base.length(post::RVPosterior) = length(post.likes)
@@ -15,8 +18,16 @@ Base.iterate(post::RVPosterior) = iterate(post.likes)
 Base.keys(post::RVPosterior) = keys(post.likes)
 Base.values(post::RVPosterior) = values(post.likes)
 
+"""
+    compute_prior_logprob(post::RVPosterior, pars::Parameters)
+Computes the cumulative natural logarithm of prior probability.
+"""
 compute_prior_logprob(post::RVPosterior, pars::Parameters) = compute_prior_logprob(pars)
 
+"""
+    compute_logaprob(post::RVPosterior, pars::Parameters)
+Computes the a posteriori probability (lnL with explicit parameter prior knowledge).
+"""
 function compute_logaprob(post::RVPosterior, pars::Parameters)
     lnL = compute_prior_logprob(post, pars)
     if !isfinite(lnL)
@@ -29,7 +40,9 @@ function compute_logaprob(post::RVPosterior, pars::Parameters)
     return lnL
 end
 
-
+"""
+    compute_logL(post::RVPosterior, pars::Parameters)
+"""
 function compute_logL(post::RVPosterior, pars::Parameters)
     lnL = 0.0
     for like in values(post)
@@ -40,10 +53,14 @@ function compute_logL(post::RVPosterior, pars::Parameters)
     end
     return lnL
 end
-    
+
+
+"""
+    compute_redχ2(post::RVPosterior, pars::Parameters)
+"""
 function compute_redχ2(post::RVPosterior, pars::Parameters)
     χ2 = 0.0
-    ν = 0.0
+    ν = 0
     for like ∈ values(post)
         data_t = get_times(like.data)
         residuals = compute_residuals(like, pars)
@@ -64,6 +81,10 @@ end
 
 num_data_points(post::RVPosterior) = sum([length(get_times(like.data)) for like ∈ values(post)])
       
+"""
+    compute_bic(post::RVPosterior, pars::Parameters)
+Computes the Bayesian information criterion (BIC).
+"""
 function compute_bic(post::RVPosterior, pars::Parameters)
     n = num_data_points(post)
     k = num_varied(pars)
@@ -72,6 +93,10 @@ function compute_bic(post::RVPosterior, pars::Parameters)
     return bic
 end
 
+"""
+    compute_aicc(post::RVPosterior, pars::Parameters)
+Computes the small-sample Akaike information criterion (AICc).
+"""
 function compute_aicc(post::RVPosterior, pars::Parameters)
     n = num_data_points(post)
     k = num_varied(pars)

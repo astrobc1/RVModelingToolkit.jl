@@ -1,8 +1,17 @@
 import DataStructures: OrderedDict
 using LaTeXStrings
 
-export Parameter, Parameters, num_varied, is_varied, to_vecs, set_values!, add_prior!, compute_prior_logprob
+export Parameter, Parameters, num_varied, is_varied, to_vecs, set_values!, add_prior!, compute_prior_logprob, index_from_pname
 
+"""
+Type for a RadVel-like Bayesian Parameter.
+# Fields:
+- `name::Union{String, Nothing}` The name of the parameter.
+- `value::Float64` The value of the parameter.
+- `vary::Bool` Whether or not to to fit for this parameter.
+- `priors::Vector{Priors.Prior}` A `Vector` of priors for this parameter.
+- `latex_str::Union{LaTeXString, Nothing}` A LaTeX-formatted string, useful for plotting.
+"""
 mutable struct Parameter
     name::Union{String, Nothing}
     value::Float64
@@ -11,11 +20,36 @@ mutable struct Parameter
     latex_str::Union{LaTeXString, Nothing}
 end
 
+"""
+Container for multiple Bayesian parameters through a dictionary-like API.
+"""
 struct Parameters
     dict::OrderedDict{String, Parameter}
 end
 
+function index_from_pname(pars::Parameters, pname::String; rel_vary=false)
+    if rel_vary
+        ii = 1
+        for _pname ∈ keys(pars)
+            if _pname == pname
+                return ii
+            elseif pars[_pname].vary
+                ii += 1
+            end
+        end
+    else
+        for (i, _pname) ∈ enumerate(values(pars))
+            if _pname == pname
+                return i
+            end
+        end
+    end
+end
 
+"""
+    Parameter(;name=nothing, value::Real, vary::Bool=true, priors=nothing, latex_str=nothing)
+Construct a Parameter object. If using the dictionary interface, the name will automatically be passed.
+"""
 function Parameter(;name=nothing, value::Real, vary::Bool=true, priors=nothing, latex_str=nothing)
     if isnothing(priors)
         priors = Priors.Prior[]
@@ -23,6 +57,10 @@ function Parameter(;name=nothing, value::Real, vary::Bool=true, priors=nothing, 
     return Parameter(name, value, vary, priors, latex_str)
 end
 
+"""
+    Parameters()
+Construct an empty Parameters object.
+"""
 function Parameters()
     return Parameters(OrderedDict{String, Parameter}())
 end

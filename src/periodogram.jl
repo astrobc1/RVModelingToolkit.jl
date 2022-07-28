@@ -2,7 +2,17 @@ using ProgressMeter
 
 export brute_force_periodogram
 
-function brute_force_periodogram(post::RVPosterior, p0::Parameters, periods, planet_index; threads=true)
+"""
+    brute_force_periodogram(post::RVPosterior, p0::Parameters, periods::AbstractVector{<:Real}, planet_index::Int; threads::Bool=true)
+Generate a periodogram by performing a MAP fit for a range in fixed periods for a particular test planet. Returns a vector of NamedTuples, each with fields:
+    - `pbest::Parameters` The best fit parameters.
+    - `lnL::Float64` The best fit log likelihood.
+    - `redχ2::Float64` The reduced chi-square metric.
+    - `aicc::Float64` The AICc
+    - `bic::Float64` The BIC
+The fits will be run in parallel using threads if `threads=true` (default) and Julia is running with more than one thread.
+"""
+function brute_force_periodogram(post::RVPosterior, p0::Parameters, periods::AbstractVector{<:Real}, planet_index::Int; threads::Bool=true)
     @assert !p0["per$(planet_index)"].vary
     n = length(periods)
     p0cp = deepcopy(p0)

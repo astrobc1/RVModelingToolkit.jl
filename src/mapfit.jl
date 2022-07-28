@@ -1,3 +1,12 @@
+"""
+    run_mapfit(post::RVPosterior, p0::Parameters)
+Perform a maximum a posteriori fit using IterativeNelderMead.jl. Returns a NamedTuple with fields:
+`pbest::Parameters` The best fit parameters.
+`lnL::Float64` The nominal log-likelihood
+`fcalls::Int` The number of function calls.
+`simplex::Matrix{Float64}` The final simplex from the IterativeNelderMead solver.
+`iteration::Int` The final iteration of the IterativeNelderMead solver.
+"""
 function run_mapfit(post::RVPosterior, p0::Parameters)
     println("Running MAP fit ...")
     vecs = to_vecs(p0)

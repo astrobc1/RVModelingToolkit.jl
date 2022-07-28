@@ -1,71 +1,56 @@
-using Infiltrator
 using Colors
-using Bokeh
+using PlotlyJS
 using PyCall, PyPlot
 using LaTeXStrings
-using RVModelingToolkit
+using Formatting
 
-export plot_rvs_full, plot_rvs_phased, plot_rvs_phased_all, savebokehhtml, corner_plot, update_latex_strings!, ALPHABET
+export plot_rvs_full, plot_rvs_phased, plot_rvs_phased_all, savebokehhtml, corner_plot, update_latex_strings!, ALPHABET, COLORS_HEX_GADFLY
 
+# alphabet ignoring a because astronomers
 const ALPHABET = ["b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
 
+# Colors
 const COLORS_HEX_GADFLY = [
     "#00BEFF", "#D4CA3A", "#FF6DAE", "#67E1B5", "#EBACFA",
     "#9E9E9E", "#F1988E", "#5DB15A", "#E28544", "#52B8AA"
 ]
 
-function get_default_plot(;width, height, fontsize="16pt", xlabel, ylabel)
-    p = Bokeh.figure(width=width, height=height)
-    p.x_axis.axis_label = xlabel
-    p.y_axis.axis_label = ylabel
-    p.x_axis.axis_label_text_font = "juliamono"
-    p.y_axis.axis_label_text_font = "juliamono"
-    p.x_axis.major_label_text_font_size = fontsize
-    p.y_axis.major_label_text_font_size = fontsize
-    p.x_axis.axis_label_text_font_style = "bold"
-    p.y_axis.axis_label_text_font_style = "bold"
-    p.x_axis.axis_label_text_font_size = fontsize
-    p.y_axis.axis_label_text_font_size = fontsize
-    p.x_grid.grid_line_dash = [4, 4]
-    p.y_grid.grid_line_dash = [4, 4]
-    p.x_grid.grid_line_alpha = 0.8
-    p.y_grid.grid_line_alpha = 0.8
-    p.outline_line_color = "#000000"
-    return p
+function hex2rgba(h, a=1.0)
+    h = strip(h, '#')
+    r, g, b = Int.(hex2bytes(h))
+    s = "rgba($r,$g,$b,$a)"
+    return s
 end
 
-function savebokehhtml(fname, p)
-    doc = Bokeh.Document(p)
-    dochtml = Bokeh.doc_standalone_html(doc)
-    dochtml_split = split(dochtml, "</head>");
-    dochtml_temp = String[]
-    push!(dochtml_temp, dochtml_split[1])
-    push!(dochtml_temp, """\n<script type="text/javascript" src="https://cdn.bokeh.org/bokeh/release/bokeh-2.4.1.min.js"></script>\n""")
-    push!(dochtml_temp, dochtml_split[2])
-    dochtml_out = join(dochtml_temp)
-    open(fname, "w") do io
-        write(io, dochtml_out)
-    end
-end
-
-function plot_rvs_phased(post::RVPosterior, pars::Parameters, planet_index::Int; data_colors)
-
-    # Figures and axes
-    p1 = get_default_plot(width=1200, height=600, xlabel="Phase", ylabel="RV [m/s]")
-    p2 = get_default_plot(width=1200, height=350, xlabel="Phase", ylabel="Residual RV [m/s]")
+"""
+    plot_rvs_phased(post::RVPosterior, pars::Parameters, planet_index::Int; data_colors::AbstractDict, titles::Bool=true, star_name::Union  {String, Nothing}=nothing)
+Plot the phased RVs for a single planet. Returns a PlotlyJS figure which can be saved to the interactive HTML file `fname` with `PlotlyJS.savefig(p, fname)`.
+"""
+function plot_rvs_phased(post::RVPosterior, pars::Parameters, planet_index::Int; data_colors::AbstractDict, titles::Bool=true, star_name::Union{String, Nothing}=nothing)
 
     # Like0
     like0 = first(post.likes)[2]
+
+    star_name_str = replace(star_name, "_"=>" ")
     
     # Compute tc for this basis
     per, tp, ecc, ω, k = convert_basis(pars, planet_index, like0.model.planets[planet_index], StandardOrbitBasis)
-    tc = Maths.tp_to_tc(tp, per, ecc, ω)
+    tc = tp_to_tc(tp, per, ecc, ω)
+
+    # Figures
+    if titles
+        title="<b>$(star_name_str) $(ALPHABET[planet_index]), P = $(round(per, digits=6)) d, K = $(round(k, digits=2)) m/s, e = $(round(ecc, digits=3))</b>"
+    else
+        title=""
+    end
+    p1 = PlotlyJS.plot(PlotlyJS.Layout(title=title, xaxis_title="<b>Phase</b>", yaxis_title="<b>RV [m/s]</b>", font=PlotlyJS.attr(family="juliamono, Courier New", size=20), template="plotly_white", width=1400, height=800))
+    p2 = PlotlyJS.plot(PlotlyJS.Layout(title="", xaxis_title="<b>Phase</b>", yaxis_title="<b>Residual RV [m/s]</b>", font=PlotlyJS.attr(family="juliamono, Courier New", size=20), template="plotly_white", width=1400, height=800))
     
     # A high res time grid
     t_hr_one_period = collect(range(tc, tc + per, length=500))
     
     # Convert grid to phases [0, 1]
-    phases_hr_one_period = Maths.get_phases(t_hr_one_period, per, tc)
+    phases_hr_one_period = get_phases(t_hr_one_period, per, tc)
     
     # Build high res model for this planet
     planet_model_phased = build_planet(like0.model, pars, t_hr_one_period, planet_index)
@@ -103,23 +88,9 @@ function plot_rvs_phased(post::RVPosterior, pars::Parameters, planet_index::Int;
             data_rverr = errors[like.data.indices[data.instname]]
             data_rv1 = residuals[like.data.indices[data.instname]] .+ build_planet(like.model, pars, data.t, planet_index)
             data_rv2 = residuals[like.data.indices[data.instname]]
-            phases_data = Maths.get_phases(data.t, per, tc)
-            Bokeh.plot!(p1, Bokeh.Scatter, x=phases_data, y=data_rv1, size=6, color=data_colors[data.instname], legend_label=data.instname)
-            Bokeh.plot!(p2, Bokeh.Scatter, x=phases_data, y=data_rv2, size=6, color=data_colors[data.instname], legend_label=data.instname)
-            for i=1:length(data_rv1)
-                w1 = Bokeh.plot!(p1, Bokeh.Whisker, base=phases_data[i], upper=data_rv1[i] + data_rverr[i], lower=data_rv1[i] - data_rverr[i], line_color=data_colors[data.instname], line_width=2)
-                w1.upper_head.line_color = data_colors[data.instname]
-                w1.lower_head.line_color = data_colors[data.instname]
-                w1.upper_head.line_width = 2
-                w1.lower_head.line_width = 2
-                w2 = Bokeh.plot!(p2, Bokeh.Whisker, base=phases_data[i], upper=data_rv2[i] + data_rverr[i], lower=data_rv2[i] - data_rverr[i], line_color=data_colors[data.instname], line_width=2)
-                w2.upper_head.line_color = data_colors[data.instname]
-                w2.lower_head.line_color = data_colors[data.instname]
-                w2.upper_head.line_width = 2
-                w2.lower_head.line_width = 2
-            end
-            
-            # Store for binning at the end
+            phases_data = get_phases(data.t, per, tc)
+            PlotlyJS.add_trace!(p1, PlotlyJS.scatter(x=phases_data, y=data_rv1, error_y=PlotlyJS.attr(array=data_rverr), name="<b>$(data.instname)</b>", mode="markers", marker=PlotlyJS.attr(color=data_colors[data.instname], size=8)))
+            PlotlyJS.add_trace!(p2, PlotlyJS.scatter(x=phases_data, y=data_rv2, error_y=PlotlyJS.attr(array=data_rverr), name="<b>$(data.instname)</b>", mode="markers", marker=PlotlyJS.attr(color=data_colors[data.instname], size=8)))
             phases_data_all = vcat(phases_data_all, phases_data)
             data_rv_all1 = vcat(data_rv_all1, data_rv1)
             data_rv_all2 = vcat(data_rv_all2, data_rv2)
@@ -128,83 +99,60 @@ function plot_rvs_phased(post::RVPosterior, pars::Parameters, planet_index::Int;
     end
 
     # Plot the model
-    Bokeh.plot!(p1, Bokeh.Line, x=phases_hr_one_period, y=planet_model_phased)
+    PlotlyJS.add_trace!(p1, PlotlyJS.scatter(x=phases_hr_one_period, y=planet_model_phased, name="<b>Keplerian Model</b>", line=PlotlyJS.attr(color="black", width=3)))
     
     # Plot the the binned data
     ss = sortperm(phases_data_all)
     phases_data_all, data_rv_all1, data_rv_all2, data_rverr_all = phases_data_all[ss], data_rv_all1[ss], data_rv_all2[ss],  data_rverr_all[ss]
-    phases_binned, rv_binned1, rverr_binned = Maths.bin_phased_rvs(phases_data_all, data_rv_all1, data_rverr_all, nbins=10)
-    phases_binned, rv_binned2, rverr_binned = Maths.bin_phased_rvs(phases_data_all, data_rv_all2, data_rverr_all, nbins=10)
-    Bokeh.plot!(p1, Bokeh.Scatter, x=phases_binned, y=rv_binned1, size=14, fill_color="maroon")
-    #Bokeh.plot!(p2, Bokeh.Scatter, x=phases_binned, y=rv_binned2, size=14, fill_color="maroon")
-    for i=1:length(phases_binned)
-        w1 = Bokeh.plot!(p1, Whisker, base=phases_binned[i], upper=rv_binned1[i] + rverr_binned[i], lower=rv_binned1[i] - rverr_binned[i], line_color="black", line_width=4)
-        w1.upper_head.line_color = "black"
-        w1.lower_head.line_color = "black"
-        w1.upper_head.line_width = 4
-        w1.lower_head.line_width = 4
-        #w2 = Bokeh.plot!(p2, Whisker, base=phases_binned[i], upper=rv_binned2[i] + rverr_binned[i], lower=rv_binned2[i] - rverr_binned[i], line_color="black")
-        #w2.upper_head.line_color = "black"
-        #w2.lower_head.line_color = "black"
-    end
+    phases_binned, rv_binned1, rverr_binned = bin_phased_rvs(phases_data_all, data_rv_all1, data_rverr_all, nbins=10)
+    PlotlyJS.add_trace!(p1, PlotlyJS.scatter(x=phases_binned, y=rv_binned1, error_y=PlotlyJS.attr(array=rverr_binned), name=nothing, showlegend=false, mode="markers", marker=PlotlyJS.attr(color="Maroon", size=12, line=PlotlyJS.attr(width=2, color="DarkSlateGrey"))))
 
     # Final config
-    p1.legend.label_text_font_size = "16pt"
-    p1.legend.label_text_font_style = "bold"
-    p2.legend.label_text_font_size = "16pt"
-    p2.legend.label_text_font_style = "bold"
-    
+    PlotlyJS.update_xaxes!(p1, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
+    PlotlyJS.update_yaxes!(p1, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
+    PlotlyJS.update_xaxes!(p2, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
+    PlotlyJS.update_yaxes!(p2, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
+
     # Return figs
     return p1, p2
 
 end
 
-
-function plot_rvs_phased_all(post::RVPosterior, pars::Parameters; data_colors)
+"""
+    plot_rvs_phased_all(post::RVPosterior, pars::Parameters; data_colors)
+Wrapper to plot all phased RVs. Returns 2 vectors of Plotly figures, which can be saved to the interactive HTML files with `PlotlyJS.savefig(p, fname)`.
+"""
+function plot_rvs_phased_all(post::RVPosterior, pars::Parameters; data_colors::AbstractDict, titles=true, star_name=nothing)
     figs1, figs2 = [], []
     like0 = first(post)[2]
     for planet_index ∈ keys(like0.model.planets)
-        result = plot_rvs_phased(post, pars, planet_index, data_colors=data_colors)
+        result = plot_rvs_phased(post, pars, planet_index, data_colors=data_colors, titles=titles, star_name=star_name)
         push!(figs1, result[1])
         push!(figs2, result[2])
     end
     return figs1, figs2
 end
 
-function get_smart_gp_sampling_times(data_t, Δt, δt)
-    ti, tf = minimum(data_t), maximum(data_t)
-    t_out = Float64[]
-    for i=1:length(data_t)
-        t_out = vcat(t_out, [data_t[i] - Δt / 2:(δt/4):data_t[i] + Δt / 2;])
-    end
 
-    # Delete points we don't need
+function get_smart_gp_sampling_times(data_t, Δt, δt)
+    t_out = [minimum(data_t) - Δt / 2:δt:maximum(data_t) + Δt / 2;]
     n_init = length(t_out)
-    for _=1:n_init
-        d = abs.(diff(t_out))
-        k = argmin(d)
-        if d[k] < δt
-            deleteat!(t_out, k)
-        else
-            break
+    bad = ones(n_init)
+    for i=1:n_init
+        if minimum(abs.(t_out[i] .- data_t)) > Δt
+            bad[i] = 0
         end
     end
-    ss = sortperm(t_out)
-    t_out .= t_out[ss]
-
-    # Chunk
-    #@infiltrate
-    # d = diff(t_out)
-    # s = findall(d .> Δt / 2)
-    # tt_out = Vector{Float64}[]
-    # for i=1:length(s)-1
-    #     push!(tt_out, t_out[s[i]:s[i+1]])
-    # end
+    bad = findall(bad .== 0)
+    t_out = deleteat!(t_out, bad)
     return t_out
 end
 
-
-function plot_rvs_full(post::RVPosterior, pars::Parameters, n_model_pts=5000; kernel_sampling=nothing, kernel_window=nothing, data_colors=nothing, gp_colors=nothing, time_offset=nothing, gp_Δt=nothing, gp_δt=nothing)
+"""
+    plot_rvs_full(post::RVPosterior, pars::Parameters; data_colors::Union{AbstractDict, Nothing}=nothing, gp_colors::Union{AbstractDict, Nothing}=nothing, time_offset::Union{<:Real, Nothing}=nothing, gp_Δt::Union{<:Real, Nothing}=nothing, gp_δt::Union{<:Real, Nothing}=nothing, n_model_pts::Int=5000)
+Plots the data RVs, the Keplerian model, and the GP as a function of modified BJD, as well as the residuals (separate plots). Returns two PlotlyJS plots, which can be saved to the interactive HTML files with `PlotlyJS.savefig(p, fname)`.
+"""
+function plot_rvs_full(post::RVPosterior, pars::Parameters; data_colors::Union{AbstractDict, Nothing}=nothing, gp_colors::Union{AbstractDict, Nothing}=nothing, time_offset::Union{<:Real, Nothing}=nothing, gp_Δt::Union{<:Real, Nothing}=nothing, gp_δt::Union{<:Real, Nothing}=nothing, n_model_pts::Int=5000)
 
     # Like0
     like0 = first(post.likes)[2]
@@ -213,13 +161,11 @@ function plot_rvs_full(post::RVPosterior, pars::Parameters, n_model_pts=5000; ke
     if isnothing(time_offset)
         time_offset = like0.model.t0
     end
-    if round(time_offset) == time_offset
-        time_offset = Int(time_offset)
-    end
+    time_offset_str = Formatting.format(time_offset)
 
-    # Figure and axes
-    p1 = get_default_plot(width=1400, height=600, xlabel="BJD - $(time_offset)", ylabel="RV [m/s]")
-    p2 = get_default_plot(width=1400, height=400, xlabel="BJD - $(time_offset)", ylabel="Residual RV [m/s]")
+    # Figures
+    p1 = PlotlyJS.plot(PlotlyJS.Layout(title="", xaxis_title="<b>BJD - $(time_offset_str)</b>", yaxis_title="<b>RV [m/s]</b>", font=PlotlyJS.attr(family="juliamono, Courier New", size=20), template="plotly_white", width=1700, height=700))
+    p2 = PlotlyJS.plot(PlotlyJS.Layout(title="", xaxis_title="<b>BJD - $(time_offset_str)</b>", yaxis_title="<b>Residual RV [m/s]</b>", font=PlotlyJS.attr(family="juliamono, Courier New", size=20), template="plotly_white", width=1700, height=500))
     
     # Plot the high resolution Keplerian model + trend (no noise yet)
     if length(like0.model.planets) > 0 || like0.model.trend_poly_deg > 0
@@ -237,7 +183,7 @@ function plot_rvs_full(post::RVPosterior, pars::Parameters, n_model_pts=5000; ke
         model_rv = build(like0.model, pars, thr)
 
         # Plot the planet model
-        Bokeh.plot!(p1, Line; x=thr .- like0.model.t0, y=model_rv, legend_label="Keplerian Model", line_color="black")
+        PlotlyJS.add_trace!(p1, PlotlyJS.scatter(x=thr .- time_offset, y=model_rv, name="<b>Keplerian Model</b>", line=PlotlyJS.attr(color="black", width=3)))
     end
     
     # Loop over likes and:
@@ -246,8 +192,6 @@ function plot_rvs_full(post::RVPosterior, pars::Parameters, n_model_pts=5000; ke
     for like ∈ values(post)
 
         data_t = get_times(like.data)
-        residuals = compute_residuals(like, pars)
-        errors = compute_data_errors(like, pars)
 
         # Correlated Noise
         if !isnothing(like.gp)
@@ -256,25 +200,59 @@ function plot_rvs_full(post::RVPosterior, pars::Parameters, n_model_pts=5000; ke
             noise_labels = collect(keys(noise_components_temp))
             gps_hr = Dict{}(label => Float64[] for label ∈ noise_labels)
             gps_error_hr = Dict{}(label => Float64[] for label ∈ noise_labels)
-            noise_components = compute_noise_components(like, pars, t_gp)
-            for comp ∈ noise_labels
-                gps_hr[comp] = vcat(gps_hr[comp], noise_components[comp][1])
-                gps_error_hr[comp] = vcat(gps_error_hr[comp], noise_components[comp][2])
+            n_chunks = Int(ceil(length(t_gp) / 500))
+            for i=1:n_chunks
+                ss = ((i-1)*500+1):min(((i)*500), length(t_gp))
+                noise_components = compute_noise_components(like, pars, t_gp[ss])
+                for comp ∈ noise_labels
+                    _gp_hr = noise_components[comp][1]
+                    _gp_error_hr = noise_components[comp][2]
+                    gps_hr[comp] = vcat(gps_hr[comp], _gp_hr)
+                    gps_error_hr[comp] = vcat(gps_error_hr[comp], _gp_error_hr)
+                end
             end
-                
-            # Plot the GPs
+
             for comp ∈ noise_labels
 
-                # Plot GP
-                Bokeh.plot!(p1, Bokeh.Line, x=t_gp .- time_offset, y=gps_hr[comp], line_color=gp_colors[comp])
-            
-                # Plot GP error
-                gp_hr_lower, gps_hr_upper = gps_hr[comp] .- gps_error_hr[comp], gps_hr[comp] .+ gps_error_hr[comp]
-                Bokeh.plot!(p1, Bokeh.VArea, x=t_gp .- time_offset, y1=gp_hr_lower, y2=gps_hr_upper, fill_color=gp_colors[comp], fill_alpha=0.5, legend_label=comp)
+                chunks = group_times_gp(t_gp, gp_Δt)
+                n_chunks = length(chunks)
+
+                for i=1:n_chunks
+                    
+                    ss = chunks[i][1]:chunks[i][2]
+                    tt = t_gp[ss] .- time_offset
+
+                    # Colors
+                    color_line = hex2rgba(gp_colors[comp], 0.6)
+                    color_fill = hex2rgba(gp_colors[comp], 0.3)
+
+                    # Plot GP
+                    PlotlyJS.add_trace!(p1, PlotlyJS.scatter(x=t_gp[ss] .- time_offset, y=gps_hr[comp][ss], line=PlotlyJS.attr(width=0.8, color=gp_colors[comp]), name=nothing, showlegend=false))
+                
+                    # Plot GP error
+                    gp_hr_lower, gp_hr_upper = gps_hr[comp][ss] .- gps_error_hr[comp][ss], gps_hr[comp][ss] .+ gps_error_hr[comp][ss]
+                    if i == 1
+                        add_trace!(p1, PlotlyJS.scatter(x=vcat(tt, reverse(tt)), y=vcat(gp_hr_upper, reverse(gp_hr_lower)), fill="toself",
+                                                               line=PlotlyJS.attr(width=1, color=color_line), fillcolor=color_fill, name="<b>$(comp)</b>", showlegend=true))
+                    else
+                        add_trace!(p1, PlotlyJS.scatter(x=vcat(tt, reverse(tt)), y=vcat(gp_hr_upper, reverse(gp_hr_lower)), fill="toself",
+                                                               line=PlotlyJS.attr(width=1, color=color_line), fillcolor=color_fill, name=nothing, showlegend=false))
+                    end
+                end
             end
-        
-            # Compute the noise model for the data and remove
+        end
+    end
+
+    for like ∈ values(post)
+
+        data_t = get_times(like.data)
+        residuals = compute_residuals(like, pars)
+        errors = compute_data_errors(like, pars)
+
+        # Compute the noise model for the data and remove
+        if !isnothing(like.gp)
             noise_components = compute_noise_components(like, pars, data_t)
+            noise_labels = collect(keys(noise_components))
             for comp ∈ noise_labels
                 residuals[noise_components[comp][3]] .-= noise_components[comp][1][noise_components[comp][3]]
             end
@@ -293,22 +271,18 @@ function plot_rvs_full(post::RVPosterior, pars::Parameters, n_model_pts=5000; ke
             data_rverr = errors[like.data.indices[data.instname]]
             
             # Plot rvs
-            Bokeh.plot!(p1, Bokeh.Scatter, x=data.t .- time_offset, y=data_rv1, size=12, color=data_colors[data.instname], line_color="#42464a", legend_label=data.instname)
-            Bokeh.plot!(p2, Bokeh.Scatter, x=data.t .- time_offset, y=data_rv2, size=10, color=data_colors[data.instname], line_color="#42464a")
-            for i=1:length(data_rv1)
-                w1 = Bokeh.plot!(p1, Bokeh.Whisker, base=data.t[i] - time_offset, upper=data_rv1[i] + data_rverr[i], lower=data_rv1[i] - data_rverr[i], line_color=data_colors[data.instname], line_width=2)
-                w1.upper_head.line_color = data_colors[data.instname]
-                w1.lower_head.line_color = data_colors[data.instname]
-                w1.upper_head.line_width = 2
-                w1.lower_head.line_width = 2
-                w2 = Bokeh.plot!(p2, Bokeh.Whisker, base=data.t[i] - time_offset, upper=data_rv2[i] + data_rverr[i], lower=data_rv2[i] - data_rverr[i], line_color=data_colors[data.instname], line_width=2)
-                w2.upper_head.line_color = data_colors[data.instname]
-                w2.lower_head.line_color = data_colors[data.instname]
-                w2.upper_head.line_width = 2
-                w2.lower_head.line_width = 2
-            end
+            marker_color = hex2rgba(data_colors[data.instname], 0.9)
+            PlotlyJS.add_trace!(p1, PlotlyJS.scatter(x=data.t .- time_offset, y=data_rv1, error_y=PlotlyJS.attr(array=data_rverr), name="<b>$(data.instname)</b>", mode="markers", marker=PlotlyJS.attr(color=marker_color, size=14, line=PlotlyJS.attr(width=2, color="DarkSlateGrey"))))
+            PlotlyJS.add_trace!(p2, PlotlyJS.scatter(x=data.t .- time_offset, y=data_rv2, error_y=PlotlyJS.attr(array=data_rverr), name="<b>$(data.instname)</b>", mode="markers", marker=PlotlyJS.attr(color=marker_color, size=14, line=PlotlyJS.attr(width=2, color="DarkSlateGrey"))))
         end
+
     end
+
+    # Final config
+    PlotlyJS.update_xaxes!(p1, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
+    PlotlyJS.update_yaxes!(p1, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
+    PlotlyJS.update_xaxes!(p2, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
+    PlotlyJS.update_yaxes!(p2, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
     
     # Return the figures
     return p1, p2
@@ -316,8 +290,11 @@ function plot_rvs_full(post::RVPosterior, pars::Parameters, n_model_pts=5000; ke
 end
 
 
-        
-function corner_plot(post::RVPosterior, mcmc_result)
+"""
+    corner_plot(post::RVPosterior, mcmc_result::NamedTuple)
+Create a corner plot with the `NamedTuple` returned from `run_mcmc`.
+"""
+function corner_plot(post::RVPosterior, mcmc_result::NamedTuple)
     pmedvecs = to_vecs(mcmc_result.pmed)
     vi = findall(pmedvecs.vary)
     truths = pmedvecs.values[vi]
@@ -336,6 +313,33 @@ function Base.isdigit(s::String)
         false
     end
 end
+
+function bin_phased_rvs(phases, rvs, unc; nbins=10)
+
+    binned_phases = fill(NaN, nbins)
+    binned_rvs = fill(NaN, nbins)
+    binned_unc = fill(NaN, nbins)
+    bins = collect(range(0, 1, length=nbins+1))
+    for i=1:nbins
+        inds = findall((phases .>= bins[i]) .&& (phases .< bins[i + 1]))
+        n = length(inds)
+        if n == 0
+            continue
+        end
+        w = 1 ./ unc[inds].^2
+        w ./= sum(w)
+        binned_phases[i] = @views mean(phases[inds])
+        binned_rvs[i] = @views weighted_mean(rvs[inds], w)
+        if length(inds) == 1
+            binned_unc[i] = @views rvs[inds[1]]
+        else
+            binned_unc[i] = @views weighted_stddev(rvs[inds], w) / sqrt(n)
+        end
+    end
+
+    return binned_phases, binned_rvs, binned_unc
+end
+
 
 function update_latex_strings!(post, pars)
     planets = first(post)[2].model.planets
@@ -377,7 +381,26 @@ function update_latex_strings!(post, pars)
         # Jitter
         elseif startswith(pname, "jitter_")
             instname = split(pname, "_")[end]
-            par.latex_str = L"\sigma_{%$instname}$"
+            par.latex_str = L"\sigma_{%$instname}"
         end
     end
+end
+
+function group_times_gp(t, Δt)
+    n = length(t)
+    prev_i = 1
+    indices = Vector{Int64}[]
+    if n == 1
+        push!(indices, [1, 1])
+    else
+        for i=1:n-1
+            if t[i+1] - t[i] > Δt
+                push!(indices, [prev_i, i])
+                prev_i = i + 1
+            end
+        end
+        push!(indices, [prev_i, n - 1])
+    end
+
+    return indices
 end

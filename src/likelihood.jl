@@ -1,6 +1,9 @@
-
 export RVLikelihood
 
+"""
+    RVLikelihood{M, N}
+A RadVel-like likelihood object for normally distributed errors (possibly after a GP).
+"""
 mutable struct RVLikelihood{M, N}
     data::CompositeRVData
     model::M
@@ -20,9 +23,11 @@ function compute_logL(like::RVLikelihood{<:Any, <:Nothing}, pars::Parameters)
     return lnL
 end
 
+"""
+    compute_logL(like::RVLikelihood{<:Any, <:GaussianProcess{Kernel}}, pars::Parameters) where {Kernel}
+"""
 function compute_logL(like::RVLikelihood{<:Any, <:GaussianProcess{Kernel}}, pars::Parameters) where {Kernel}
     residuals = compute_residuals(like, pars)
-    errors = compute_data_errors(like, pars)
     n = length(residuals)
     try
         K = compute_cov_matrix(like, pars)
@@ -30,20 +35,26 @@ function compute_logL(like::RVLikelihood{<:Any, <:GaussianProcess{Kernel}}, pars
         α = Chol \ residuals
         lndetK = logdet(K)
         lnL = -0.5 * ((transpose(residuals) * α) + lndetK + n * LOG_2PI)
+        return lnL
     catch
         return -Inf
     end
 end
 
-
-function compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{Kernel}}, pars) where {Kernel}
+"""
+    compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{Kernel}}, pars::Parameters) where {Kernel}
+"""
+function compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{Kernel}}, pars::Parameters) where {Kernel}
     data_rverr = compute_data_errors(like, pars)
     data_t = get_times(like.data)
     K = compute_cov_matrix(like.gp, pars, data_t, data_t, data_rverr)
     return K
 end
 
-function compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ1}}, pars)
+"""
+    compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ1}}, pars::Parameters)
+"""
+function compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ1}}, pars::Parameters)
     data_rverr = compute_data_errors(like, pars)
     data_t = get_times(like.data)
     data_amp_vec = fill(NaN, length(data_rverr))
@@ -56,7 +67,11 @@ function compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{Chromati
     return K
 end
 
-function compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ2}}, pars)
+
+"""
+    compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ2}}, pars::Parameters)
+"""
+function compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ2}}, pars::Parameters)
     data_rverr = compute_data_errors(like, pars)
     data_t = get_times(like.data)
     data_λ_vec = get_λs(like.data)
@@ -65,7 +80,10 @@ function compute_cov_matrix(like::RVLikelihood{<:Any, <:GaussianProcess{Chromati
 end
 
 
-function compute_residuals(like::RVLikelihood, pars)
+"""
+    compute_residuals(like::RVLikelihood, pars::Parameters)
+"""
+function compute_residuals(like::RVLikelihood, pars::Parameters)
     data_t = get_times(like.data)
     data_rv = get_rvs(like.data)
     model_rv = build(like.model, pars, data_t)
@@ -73,7 +91,10 @@ function compute_residuals(like::RVLikelihood, pars)
     return residuals
 end
 
-function compute_data_errors(like::RVLikelihood, pars)
+"""
+    compute_data_errors(like::RVLikelihood, pars::Parameters)
+"""
+function compute_data_errors(like::RVLikelihood, pars::Parameters)
     errors2 = get_rverrs(like.data).^2
     for instname ∈ keys(like.data)
         inds = like.data.indices[instname]
@@ -82,8 +103,10 @@ function compute_data_errors(like::RVLikelihood, pars)
     return sqrt.(errors2)
 end
 
-
-function compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{Kernel}}, pars, t) where {Kernel}
+"""
+    compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{Kernel}}, pars::Parameters, t::AbstractVector{<:Real}) where {Kernel}
+"""
+function compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{Kernel}}, pars::Parameters, t::AbstractVector{<:Real}) where {Kernel}
     residuals = compute_residuals(like, pars)
     data_t = get_times(like.data)
     data_rverr = compute_data_errors(like, pars)
@@ -100,8 +123,10 @@ function compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{Ke
     return noise_components
 end
 
-
-function compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ1}}, pars, t)
+"""
+    compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ1}}, pars::Parameters, t::AbstractVector{<:Real})
+"""
+function compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ1}}, pars::Parameters, t::AbstractVector{<:Real})
     residuals = compute_residuals(like, pars)
     data_t = get_times(like.data)
     data_rverr = compute_data_errors(like, pars)
@@ -123,14 +148,17 @@ function compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{Ch
 end
 
 
-function compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ2}}, pars, t)
+"""
+    compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ2}}, pars::Parameters, t::AbstractVector{<:Real})
+"""
+function compute_noise_components(like::RVLikelihood{<:Any, <:GaussianProcess{ChromaticKernelJ2}}, pars::Parameters, t::AbstractVector{<:Real})
     residuals = compute_residuals(like, pars)
     data_t = get_times(like.data)
     data_rverr = compute_data_errors(like, pars)
     noise_components = Dict{String, Any}()
     λs = get_λs(like.data)
     λs_unq = unique(λs)
-    for λ in λs_unq
+    for λ ∈ λs_unq
         label = "GP $(λ)"
         gp, gperr = predict(like.gp, pars, data_t, residuals, data_rverr, λs, tpred=t, λpred=λ)
         inds = findall(λs .== λ)

@@ -3,7 +3,6 @@ module RVModelingToolkit
 using Reexport
 
 include("maths.jl")
-@reexport using .Maths
 
 include("rvdata.jl")
 include("priors.jl")
@@ -11,8 +10,7 @@ include("priors.jl")
 
 include("bayesparameters.jl")
 
-include("OrbitBases.jl")
-@reexport using .OrbitBases
+include("orbitbases.jl")
 
 include("kepmodel.jl")
 
@@ -29,5 +27,7 @@ include("plotting.jl")
 include("modelcomp.jl")
 
 include("periodogram.jl")
+
+include("planetstats.jl")
 
 end

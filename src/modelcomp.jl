@@ -1,17 +1,28 @@
 using Combinatorics
 
-using Infiltrator
+export model_comparison, print_mcresult
 
-export model_comparison
-
-function model_comparison(post, p0::Parameters)
+"""
+    model_comparison(post::RVPosterior, p0::Parameters)
+Runs a MAP fit for each unique combination of planets stored in `first(post)[2].model.planets`. For each model, returns a NamedTuple with fields:
+    `planets::OrderedDict{Int, OrbitBasis}` The planets.
+    `lnL::Float64` The nominal log likelihood.
+    `pbest::Parameters` The best fit parameters.
+    `redχ2::Float64` The reduced chi square corresponding to the nominal log likelihood.
+    `bic::Float64` The Bayesian Information Criterion (BIC).
+    `aicc::Float64` The small-sample Akaike Information Criterion (AICC).
+    `n_free::Int` The number of varied parameters.
+    `Δaicc::Float64` The change in the AICC relative to the model with the smallest AICC.
+    `Δbic::Float64` The change in the BIC relative to the model with the smallest AICC.
+"""
+function model_comparison(post::RVPosterior, p0::Parameters)
     p00 = deepcopy(p0)
     post0 = deepcopy(post)
     like0 = first(post)[2]
     model0 = like0.model
     planets0 = copy(model0.planets)
     planet_perms = get_planet_perms(planets0)
-    println("Running model comparison with $(length(planet_perms)) different models ...")
+    println("Running model comparison for $(length(planet_perms)) models ...")
     mc_results = []
 
     for i=1:length(planet_perms)
@@ -63,4 +74,26 @@ function get_planet_perms(planets)
         push!(planet_perms, d)
     end
     return planet_perms
+end
+
+function print_mcresult(mc_result; n=3)
+    println("Planets  |   lnL   |   reduced-χ²   |   ΔBIC   |   ΔAICc")
+    for i=1:length(mc_result)
+        r = mc_result[i]
+        planets_str = ""
+        for j ∈ keys(r.planets)
+            planets_str *= "$(ALPHABET[j]),"
+        end
+        if planets_str == ""
+            planets_str = "-"
+        else
+            planets_str = planets_str[1:end-1]
+        end
+        line = "$(planets_str) | $(stat_str(r.lnL, n)) | $(stat_str(r.redχ2, n)) | $(stat_str(r.Δbic, n)) | $(stat_str(r.Δaicc, n))"
+        println(line)
+    end
+end
+
+function stat_str(r::Real, n)
+    return "$(round(r, digits=n))"
 end

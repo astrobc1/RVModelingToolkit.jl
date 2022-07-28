@@ -269,6 +269,14 @@ git-tree-sha1 = "fa6287a4469f5e048d763df38279ee729fbd44e5"
 uuid = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
 version = "1.4.0"
 
+[[deps.IterativeNelderMead]]
+deps = ["DataFrames", "DataStructures", "LinearAlgebra", "Statistics"]
+git-tree-sha1 = "cca46bb2cfcffb2f60839fac003a6136aa4d8e3f"
+repo-rev = "master"
+repo-url = "https://github.com/astrobc1/IterativeNelderMead.jl"
+uuid = "c4497e51-e72c-4304-bf71-922071a3f507"
+version = "0.1.1"
+
 [[deps.IteratorInterfaceExtensions]]
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
 uuid = "82899510-4779-5014-852e-03e436cf321d"

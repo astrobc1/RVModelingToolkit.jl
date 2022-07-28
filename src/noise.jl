@@ -1,14 +1,23 @@
 using LinearAlgebra
 
-using Infiltrator
+export GaussianProcess, predict
 
-export GaussianProcess
-
+"""
+    Wrapper for a Gaussian Process noise kernel.
+"""
 struct GaussianProcess{K<:NoiseKernel}
     kernel::K
 end
 
-function compute_cov_matrix(gp::GaussianProcess{Kernel}, pars, t1, t2, data_rverr=nothing) where{Kernel}
+"""
+    Make predictions with the GP model at arbitrary observation times.
+"""
+function predict end
+
+"""
+    compute_cov_matrix(gp::GaussianProcess{Kernel}, pars::Parameters, t1::AbstractVector{<:Real}, t2::AbstractVector{<:Real}, data_rverr::Union{AbstractVector{<:Real}, Nothing}=nothing) where{Kernel}
+"""
+function compute_cov_matrix(gp::GaussianProcess{Kernel}, pars::Parameters, t1::AbstractVector{<:Real}, t2::AbstractVector{<:Real}, data_rverr::Union{AbstractVector{<:Real}, Nothing}=nothing) where{Kernel}
     K = compute_cov_matrix(gp.kernel, pars, t1, t2)
     if !isnothing(data_rverr)
         n1, n2 = size(K)
@@ -19,7 +28,10 @@ function compute_cov_matrix(gp::GaussianProcess{Kernel}, pars, t1, t2, data_rver
     return K
 end
 
-function predict(gp::GaussianProcess{Kernel}, pars, data_t, linpred, data_rverr; tpred=nothing) where {Kernel}
+"""
+    predict(gp::GaussianProcess{Kernel}, pars::Parameters, data_t::AbstractVector{<:Real}, linpred::AbstractVector{<:Real}, data_rverr::AbstractVector{<:Real}; tpred::Union{AbstractVector{<:Real}, Nothing}=nothing) where {Kernel}
+"""
+function predict(gp::GaussianProcess{Kernel}, pars::Parameters, data_t::AbstractVector{<:Real}, linpred::AbstractVector{<:Real}, data_rverr::AbstractVector{<:Real}; tpred::Union{AbstractVector{<:Real}, Nothing}=nothing) where {Kernel}
 
     # Get grids
     if isnothing(tpred)
