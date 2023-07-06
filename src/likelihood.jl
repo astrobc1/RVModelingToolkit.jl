@@ -4,10 +4,10 @@ export RVLikelihood
     RVLikelihood{M, N}
 A RadVel-like likelihood object for normally distributed errors (possibly after a GP).
 """
-mutable struct RVLikelihood{M, N}
+mutable struct RVLikelihood{M, G}
     data::CompositeRVData
     model::M
-    gp::N
+    gp::G
     RVLikelihood(data, model, gp=nothing) = new{typeof(model), typeof(gp)}(data, model, gp)
 end
 

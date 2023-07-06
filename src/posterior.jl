@@ -1,13 +1,16 @@
+
+
+
 export RVPosterior, compute_bic, compute_aicc
 
 struct RVPosterior
-    likes::Dict{String, RVLikelihood}
+    likes::OrderedDict{String, RVLikelihood}
 end
 
 """
     Construct an empty RVPosterior object 
 """
-RVPosterior() = RVPosterior(Dict{String, RVLikelihood}())
+RVPosterior() = RVPosterior(OrderedDict{String, RVLikelihood}())
 
 Base.length(post::RVPosterior) = length(post.likes)
 Base.merge!(post::RVPosterior, post2::RVPosterior) = merge!(post.likes, post2.likes)
@@ -22,7 +25,7 @@ Base.values(post::RVPosterior) = values(post.likes)
     compute_prior_logprob(post::RVPosterior, pars::Parameters)
 Computes the cumulative natural logarithm of prior probability.
 """
-compute_prior_logprob(post::RVPosterior, pars::Parameters) = compute_prior_logprob(pars)
+compute_prior_logprob(::RVPosterior, pars::Parameters) = compute_prior_logprob(pars)
 
 """
     compute_logaprob(post::RVPosterior, pars::Parameters)

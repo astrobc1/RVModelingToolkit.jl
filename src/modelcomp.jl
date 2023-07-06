@@ -15,7 +15,7 @@ Runs a MAP fit for each unique combination of planets stored in `first(post)[2].
     `Δaicc::Float64` The change in the AICC relative to the model with the smallest AICC.
     `Δbic::Float64` The change in the BIC relative to the model with the smallest AICC.
 """
-function model_comparison(post::RVPosterior, p0::Parameters)
+function model_comparison(post::RVPosterior, p0::Parameters; output_path=nothing, display=true)
     p00 = deepcopy(p0)
     post0 = deepcopy(post)
     like0 = first(post)[2]
@@ -30,7 +30,8 @@ function model_comparison(post::RVPosterior, p0::Parameters)
         p0cp = deepcopy(p00)
         planetscp = planet_perms[i]
         for like ∈ values(postcp)
-            like.model.planets = planetscp
+            empty!(like.model.planets)
+            merge!(like.model.planets, planetscp)
         end
         for planet_index ∈ keys(planets0)
             if planet_index ∉ keys(planetscp)
@@ -39,7 +40,7 @@ function model_comparison(post::RVPosterior, p0::Parameters)
         end
         map_result = run_mapfit(postcp, p0cp)
         pbest = map_result.pbest
-        lnL = map_result.lnL
+        lnL = compute_logL(postcp, pbest)
         aicc = compute_aicc(postcp, pbest)
         bic = compute_bic(postcp, pbest)
         redχ2 = compute_redχ2(postcp, pbest)
@@ -57,6 +58,14 @@ function model_comparison(post::RVPosterior, p0::Parameters)
     mc_results_out = []
     for (i, r) ∈ enumerate(mc_results)
         push!(mc_results_out, (;planets=r.planets, lnL=r.lnL, pbest=r.pbest, redχ2=r.redχ2, bic=r.bic, aicc=r.aicc, n_free=r.n_free, Δaicc=Δaiccs[i], Δbic=Δbics[i]))
+    end
+
+    if !isnothing(output_path)
+        jldsave("$(output_path)model_comparison.jld", mc_result=mc_results_out)
+    end
+
+    if display
+        print_mcresult(mc_results_out; n=5)
     end
 
     return mc_results_out

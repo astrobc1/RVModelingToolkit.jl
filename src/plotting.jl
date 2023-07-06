@@ -26,7 +26,7 @@ end
     plot_rvs_phased(post::RVPosterior, pars::Parameters, planet_index::Int; data_colors::AbstractDict, titles::Bool=true, star_name::Union  {String, Nothing}=nothing)
 Plot the phased RVs for a single planet. Returns a PlotlyJS figure which can be saved to the interactive HTML file `fname` with `PlotlyJS.savefig(p, fname)`.
 """
-function plot_rvs_phased(post::RVPosterior, pars::Parameters, planet_index::Int; data_colors::AbstractDict, titles::Bool=true, star_name::Union{String, Nothing}=nothing)
+function plot_rvs_phased(post::RVPosterior, pars::Parameters, planet_index::Int; data_colors::AbstractDict, titles::Bool=true, star_name::Union{String, Nothing}=nothing, output_path::Union{String, Nothing}=nothing)
 
     # Like0
     like0 = first(post.likes)[2]
@@ -113,6 +113,11 @@ function plot_rvs_phased(post::RVPosterior, pars::Parameters, planet_index::Int;
     PlotlyJS.update_xaxes!(p2, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
     PlotlyJS.update_yaxes!(p2, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
 
+    if !isnothing(output_path)
+        PlotlyJS.savefig(p1, "$(output_path)$(star_name)_$(ALPHABET[planet_index])_rvs_phased.html")
+        PlotlyJS.savefig(p2, "$(output_path)$(star_name)_$(ALPHABET[planet_index])_rvs_phased_residuals.html")
+    end
+
     # Return figs
     return p1, p2
 
@@ -122,11 +127,11 @@ end
     plot_rvs_phased_all(post::RVPosterior, pars::Parameters; data_colors)
 Wrapper to plot all phased RVs. Returns 2 vectors of Plotly figures, which can be saved to the interactive HTML files with `PlotlyJS.savefig(p, fname)`.
 """
-function plot_rvs_phased_all(post::RVPosterior, pars::Parameters; data_colors::AbstractDict, titles=true, star_name=nothing)
+function plot_rvs_phased_all(post::RVPosterior, pars::Parameters; data_colors::AbstractDict, titles=true, output_path::Union{String, Nothing}=nothing, star_name::String)
     figs1, figs2 = [], []
     like0 = first(post)[2]
     for planet_index ∈ keys(like0.model.planets)
-        result = plot_rvs_phased(post, pars, planet_index, data_colors=data_colors, titles=titles, star_name=star_name)
+        result = plot_rvs_phased(post, pars, planet_index; data_colors, titles, output_path, star_name)
         push!(figs1, result[1])
         push!(figs2, result[2])
     end
@@ -152,7 +157,7 @@ end
     plot_rvs_full(post::RVPosterior, pars::Parameters; data_colors::Union{AbstractDict, Nothing}=nothing, gp_colors::Union{AbstractDict, Nothing}=nothing, time_offset::Union{<:Real, Nothing}=nothing, gp_Δt::Union{<:Real, Nothing}=nothing, gp_δt::Union{<:Real, Nothing}=nothing, n_model_pts::Int=5000)
 Plots the data RVs, the Keplerian model, and the GP as a function of modified BJD, as well as the residuals (separate plots). Returns two PlotlyJS plots, which can be saved to the interactive HTML files with `PlotlyJS.savefig(p, fname)`.
 """
-function plot_rvs_full(post::RVPosterior, pars::Parameters; data_colors::Union{AbstractDict, Nothing}=nothing, gp_colors::Union{AbstractDict, Nothing}=nothing, time_offset::Union{<:Real, Nothing}=nothing, gp_Δt::Union{<:Real, Nothing}=nothing, gp_δt::Union{<:Real, Nothing}=nothing, n_model_pts::Int=5000)
+function plot_rvs_full(post::RVPosterior, pars::Parameters; data_colors::Union{AbstractDict, Nothing}=nothing, gp_colors::Union{AbstractDict, Nothing}=nothing, time_offset::Union{<:Real, Nothing}=nothing, gp_Δt::Union{<:Real, Nothing}=nothing, gp_δt::Union{<:Real, Nothing}=nothing, n_model_pts::Int=5000, output_path::Union{String, Nothing}=nothing, star_name::Union{String, Nothing}=nothing)
 
     # Like0
     like0 = first(post.likes)[2]
@@ -283,6 +288,12 @@ function plot_rvs_full(post::RVPosterior, pars::Parameters; data_colors::Union{A
     PlotlyJS.update_yaxes!(p1, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
     PlotlyJS.update_xaxes!(p2, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
     PlotlyJS.update_yaxes!(p2, zeroline=false, tickprefix="<b>", ticksuffix ="</b><br>", automargin=true)
+
+    # Save the figures
+    if !isnothing(output_path)
+        PlotlyJS.savefig(p1, "$(output_path)$(star_name)_rvs.html")
+        PlotlyJS.savefig(p2, "$(output_path)$(star_name)_rvs_residuals.html")
+    end
     
     # Return the figures
     return p1, p2
@@ -294,15 +305,18 @@ end
     corner_plot(post::RVPosterior, mcmc_result::NamedTuple)
 Create a corner plot with the `NamedTuple` returned from `run_mcmc`.
 """
-function corner_plot(post::RVPosterior, mcmc_result::NamedTuple)
+function corner_plot(post::RVPosterior, mcmc_result::NamedTuple; output_path::Union{String, Nothing}=nothing, star_name::Union{String, Nothing}=nothing)
     pmedvecs = to_vecs(mcmc_result.pmed)
     vi = findall(pmedvecs.vary)
     truths = pmedvecs.values[vi]
     labels = [par.latex_str for par ∈ values(mcmc_result.pmed) if par.vary]
     corner = pyimport("corner")
     pygui(false)
-    p = corner.corner(mcmc_result.chains, labels=labels, truths=truths, show_titles=true)
-    return p
+    fig = corner.corner(mcmc_result.chains, labels=labels, truths=truths, show_titles=true)
+    if !isnothing(output_path)
+        fig.savefig("$(output_path)$(star_name)_corner.png", dpi=200)
+    end
+    return fig
 end
 
 function Base.isdigit(s::String)
@@ -404,3 +418,10 @@ function group_times_gp(t, Δt)
 
     return indices
 end
+
+# function get_data_colors(data::CompositeRVData)
+#     data_colors = Dict{String, String}()
+#     for d in values(data)
+#         data_colors[d]
+#     return data_colors
+# end

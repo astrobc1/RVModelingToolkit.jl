@@ -48,6 +48,3 @@ function compute_data_errors end
 Method to compute the noise components. Implemented by each likelihood / kernel.
 """
 function compute_noise_components end
-
-include("likelihood.jl")
-include("posterior.jl")

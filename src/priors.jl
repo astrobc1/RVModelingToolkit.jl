@@ -8,11 +8,6 @@ export Prior, logprob
 abstract type Prior end
 
 """
-    Computes the natural logarithm of the probability for this prior given a parameter value.
-"""
-function logprob end
-
-"""
     A Gaussian prior with mean μ::Float64 and standard deviation σ::Float64.
 """
 struct Gaussian <: Prior

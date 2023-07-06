@@ -1,3 +1,5 @@
+export run_mapfit
+
 """
     run_mapfit(post::RVPosterior, p0::Parameters)
 Perform a maximum a posteriori fit using IterativeNelderMead.jl. Returns a NamedTuple with fields:

@@ -1,5 +1,3 @@
-using RVModelingToolkit
-
 export OrbitBasis, StandardOrbitBasis, TCOrbitBasis, convert_basis, parameters
 
 """

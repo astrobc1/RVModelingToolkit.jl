@@ -13,11 +13,11 @@ Type for a RadVel-like Bayesian Parameter.
 - `latex_str::Union{LaTeXString, Nothing}` A LaTeX-formatted string, useful for plotting.
 """
 mutable struct Parameter
-    name::Union{String, Nothing}
+    name::String
     value::Float64
     vary::Bool
     priors::Vector{Priors.Prior}
-    latex_str::Union{LaTeXString, Nothing}
+    latex_str::LaTeXString
 end
 
 """
@@ -50,12 +50,7 @@ end
     Parameter(;name=nothing, value::Real, vary::Bool=true, priors=nothing, latex_str=nothing)
 Construct a Parameter object. If using the dictionary interface, the name will automatically be passed.
 """
-function Parameter(;name=nothing, value::Real, vary::Bool=true, priors=nothing, latex_str=nothing)
-    if isnothing(priors)
-        priors = Priors.Prior[]
-    end
-    return Parameter(name, value, vary, priors, latex_str)
-end
+Parameter(;name="", value::Real, vary::Bool=true, priors=Priors.Prior[], latex_str=L"") = Parameter(name, value, vary, priors, latex_str)
 
 """
     Parameters()
@@ -78,18 +73,11 @@ Base.iterate(pars::Parameters) = iterate(pars.dict)
 Base.keys(pars::Parameters) = keys(pars.dict)
 Base.values(pars::Parameters) = values(pars.dict)
 
-function set_name!(par::Parameter, name::String)
-    if isnothing(par.name)
-        par.name = name
-    end
-    if isnothing(par.latex_str)
-        name = par.name
-        par.latex_str = L"$name"
-    end
-end
-
 function Base.setindex!(pars::Parameters, par::Parameter, key::String)
-    set_name!(par, key)
+    if par.name == ""
+        par.name = key
+    end
+    @assert par.name == key
     setindex!(pars.dict, par, key)
 end
 

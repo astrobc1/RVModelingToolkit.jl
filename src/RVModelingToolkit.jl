@@ -1,12 +1,16 @@
 module RVModelingToolkit
 
-using Reexport
+import DataStructures: OrderedDict
+using JLD2
 
 include("maths.jl")
 
+include("bayesobj.jl")
+
 include("rvdata.jl")
 include("priors.jl")
-@reexport using .Priors
+using .Priors
+export Priors
 
 include("bayesparameters.jl")
 
@@ -19,7 +23,8 @@ include("noise.jl")
 include("qp.jl")
 include("kernels_chromatic.jl")
 
-include("bayesobj.jl")
+include("likelihood.jl")
+include("posterior.jl")
 
 include("fitting.jl")
 include("plotting.jl")

@@ -1,6 +1,6 @@
-using CSV, DataFrames
+using CSV, DataFrames, DelimitedFiles
 
-export RVData, CompositeRVData, get_times, get_instnames, get_rvs, get_rverrs, read_rvs, read_radvel_file, get_view, get_λs
+export RVData, CompositeRVData, get_times, get_instnames, get_rvs, get_rverrs, read_rvs, read_radvel_file, get_view, get_λs, write_radvel_file
 
 """
 Stores the times, RVs, and RV errors for a single spectrograph.
@@ -13,49 +13,50 @@ Stores the times, RVs, and RV errors for a single spectrograph.
 - `λ::Union{Int, Nothing}` The wavelength of this dataset which may be used in any modeling.
 Construct an RVData object.
 """
-mutable struct RVData
+mutable struct RVData{W<:Union{Nothing, Float64}}
     t::Vector{Float64}
     rv::Vector{Float64}
     rverr::Vector{Float64}
-    instname::Union{String, Nothing}
-    λ::Union{Int, Nothing}
-    """
-        RVData(t::Vector{Float64}, rv::Vector{Float64}, rverr::Vector{Float64}; instname=nothing, λ=nothing)
-    Construct an RVData object. If using the `CompositeRVData` interface, `instname` will be set automatically.
-    """
-    function RVData(t::Vector{Float64}, rv::Vector{Float64}, rverr::Vector{Float64}; instname::Union{String, Nothing}=nothing, λ::Union{Int, Nothing}=nothing)
-        return new(t, rv, rverr, instname, λ)
-    end
+    instname::String
+    λ::W
+    RVData(t::AbstractVector{<:Real}, rv::AbstractVector{<:Real}, rverr::AbstractVector{<:Real}; instname::String="", λ::Union{Float64, Nothing}=nothing) = new{typeof(λ)}(collect(t), collect(rv), collect(rverr), instname, λ)
 end
 
 """
 Wrapper dictionary-like type to store RVs from multiple spectrographs.
 """
 struct CompositeRVData
-    dict::Dict{String, RVData}
-    indices::Dict{String, Vector{Int}}
+    dict::OrderedDict{String, RVData}
+    indices::OrderedDict{String, Vector{Int}}
 end
 
 """
     CompositeRVData()
 Construct an empty CompositeRVData object.
 """
-CompositeRVData() = CompositeRVData(Dict{String, RVData}(), Dict{String, Vector{Int}}())
+CompositeRVData() = CompositeRVData(OrderedDict{String, RVData}(), OrderedDict{String, Vector{Int}}())
 
 
 Base.length(data::CompositeRVData) = length(data.dict)
 Base.keys(data::CompositeRVData) = keys(data.dict)
 Base.values(data::CompositeRVData) = values(data.dict)
 Base.getindex(data::CompositeRVData, k) = getindex(data.dict, k)
-function Base.setindex!(data::CompositeRVData, v, k)
-    v.instname = k
-    setindex!(data.dict, v, k)
+
+
+function Base.setindex!(data::CompositeRVData, d::RVData, key::String)
+    if d.instname == ""
+        d.instname = key
+    end
+    @assert d.instname == key
+    setindex!(data.dict, d, key)
     update_indices!(data)
 end
+
 function Base.delete!(data::CompositeRVData, k)
     delete!(data.dict, k)
     update_indices!(data)
 end
+
 Base.iterate(data::CompositeRVData) = iterate(data.dict)
 
 function num_rvs(data::CompositeRVData)
@@ -160,7 +161,7 @@ function update_indices!(data::CompositeRVData)
 end
 
 
-function get_view(data::CompositeRVData, instnames)
+function get_view(data::CompositeRVData, instnames::AbstractVector{String})
     data_out = CompositeRVData()
     for instname ∈ instnames
         data_out[instname] = data[instname]
@@ -168,14 +169,20 @@ function get_view(data::CompositeRVData, instnames)
     return data_out
 end
 
+function get_view(data::CompositeRVData, instname::String)
+    data_out = CompositeRVData()
+    data_out[instname] = data[instname]
+    return data_out
+end
 
 
-function read_rvs(fname::String; delim=",", instname=nothing, λ=nothing)
+
+function read_rvs(fname::String; delim=",", instname::Union{String, Nothing}=nothing, λ=nothing)
     df = CSV.read(fname, DataFrame, delim=delim)
     t = df.time
     rvs = df.mnvel
     rverrs = df.errvel
-    d = RVData(t, rvs, rverrs, instname=instname, λ=λ)
+    d = RVData(t, rvs, rverrs; instname, λ)
     return d
 end
 
@@ -190,11 +197,8 @@ function read_radvel_file(fname::String, λs=nothing)
     data = CompositeRVData()
     for tel ∈ tels_unq
         inds = findall(tels .== tel)
-        if !isnothing(λs)
-            data[tel] = RVData(df.time[inds], df.mnvel[inds], df.errvel[inds], instname=string(tel), λ=λs[tel])
-        else
-            data[tel] = RVData(df.time[inds], df.mnvel[inds], df.errvel[inds], instname=string(tel))
-        end
+        λ = !isnothing(λs) ? λs[tel] : nothing
+        data[String(tel)] = RVData(df.time[inds], df.mnvel[inds], df.errvel[inds]; instname=String(tel), λ)
     end
     return data
 end

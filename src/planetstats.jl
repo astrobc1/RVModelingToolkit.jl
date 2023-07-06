@@ -1,6 +1,5 @@
 using DataStructures
 using ForwardDiff
-using Infiltrator
 
 export planet_stats, print_pstats
 
@@ -19,17 +18,23 @@ const AU_M = 1.496E11 # 1 AU in meters
     planet_stats(post::RVPosterior, mcmc_result; radii=nothing)
 For each planet, computes the quantities Mp*sini  [Earth masses], radius [Earth radii] (from C-K relation or just returns the provided radii), densities [g/cm^3],  Semi-major axis [AU]. Returns a dictionary of NamedTuples
 """
-function planet_stats(post::RVPosterior, mcmc_result; mstar, radii=nothing)
+function planet_stats(post::RVPosterior, mcmc_result; mstar, radii=nothing, output_path=nothing, display=true)
     planets = first(post)[2].model.planets
     masses = compute_masses(post, mcmc_result, mstar)
     radii = compute_radii(post, mcmc_result, masses, mstar, radii)
     ρs = compute_densities(post, mcmc_result, radii, mstar)
     smas = compute_smas(post, mcmc_result, mstar)
-    s = OrderedDict{Int, NamedTuple}()
+    pstats = OrderedDict{Int, NamedTuple}()
     for planet_index ∈ keys(planets)
-        s[planet_index] = (;mass=masses[planet_index], radius=radii[planet_index], ρ=ρs[planet_index], sma=smas[planet_index])
+        pstats[planet_index] = (;mass=masses[planet_index], radius=radii[planet_index], ρ=ρs[planet_index], sma=smas[planet_index])
     end
-    return s
+    if !isnothing(output_path)
+        jldsave("$(output_path)planet_stats.jld"; pstats)
+    end
+    if display
+        print_pstats(pstats)
+    end
+    return pstats
 end
 
 function compute_masses(post, mcmc_result, mstar)

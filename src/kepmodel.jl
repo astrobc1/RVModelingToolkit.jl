@@ -3,9 +3,9 @@ using DataStructures
 
 export RVModel, build, build_planet, build_planets, build_global_trend, build_trend_zero, true_anomaly, tp_to_tc, tc_to_tp, disable_planet_parameters!, solve_kepler, solve_kepler_all_times, get_phases
 
-mutable struct RVModel{T}
+struct RVModel
     planets::OrderedDict{Int, OrbitBasis}
-    trend_poly_deg::T
+    trend_poly_deg::Int
     t0::Float64
 end
 
@@ -13,10 +13,7 @@ end
     RVModel(planets::Union{OrderedDict{Int, OrbitBasis}, Nothing}=nothing, trend_poly_deg::Int=0; t0=2400000.0)
 Construct an RVModel object to model RVs with one or multiple Keplerian orbits.
 """
-function RVModel(planets::Union{OrderedDict{Int, OrbitBasis}, Nothing}=nothing, trend_poly_deg::Int=0; t0=2400000.0)
-    if isnothing(planets)
-        planets = Dict{Int, OrbitBasis}()
-    end
+function RVModel(planets::OrderedDict{Int, OrbitBasis}=OrderedDict{Int, OrbitBasis}(), trend_poly_deg::Int=0; t0=2400000.0)
     return RVModel(planets, trend_poly_deg, t0)
 end
 
