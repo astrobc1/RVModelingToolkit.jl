@@ -86,7 +86,7 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
     
     println("Completed MCMC burn in")
 
-    walkers = chain[:, :, end]
+    walkers = chains[:, :, end]
     
     println("Running MCMC ...")
 
