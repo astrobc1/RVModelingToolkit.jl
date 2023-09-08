@@ -81,7 +81,8 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
 
     # Chains size = (n_walkers, n_pars, n_steps)
     # lnLs = (n_walkers, n_steps)
-    chain, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, n_burn_steps, 1)
+    #chain, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, n_burn_steps, 1)
+    chains, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, n_burn_steps, 1, 2.0; filename="", load=false, save=false)
     
     println("Completed MCMC burn in")
 
@@ -105,7 +106,8 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
         ii = (i - 1) * check_every + 1
 
         # Sample
-        chains, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, check_every, 1)
+        #chains, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, check_every, 1)
+        chains, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, check_every, 1, 2.0; filename="", load=false, save=false)
         walkers .= chains[:, :, end]
         chains_full = cat(chains_full, permutedims(chains, (3, 2, 1)), dims=1)
         lnLs_full = cat(lnLs_full, permutedims(lnLs, (2, 1)), dims=1)
