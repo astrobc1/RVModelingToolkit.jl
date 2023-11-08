@@ -162,14 +162,14 @@ function get_scale(par::Parameter)
     end
     for prior ∈ par.priors
         if prior isa Priors.Gaussian
-            return prior.σ / 10
+            return prior.σ / 2
         end
     end
     for prior ∈ par.priors
         if prior isa Priors.Uniform
             dx1 = abs(prior.upper_bound - par.value)
             dx2 = abs(par.value - prior.lower_bound)
-            scale = min(dx1, dx2) / 100
+            scale = min(dx1, dx2) / 10
             if scale == 0
                 return 1
             else
