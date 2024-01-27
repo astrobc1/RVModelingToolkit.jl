@@ -15,12 +15,12 @@ The fits will be run in parallel using threads if `threads=true` (default) and J
 function brute_force_periodogram(post::RVPosterior, p0::Parameters, periods::AbstractVector{<:Real}, planet_index::Int; threads::Bool=true)
     @assert !p0["per$(planet_index)"].vary
     n = length(periods)
-    p0cp = deepcopy(p0)
     results = Vector{NamedTuple}(undef, n)
     println("Running brute force periodogram for planet $(planet_index) ...")
     if threads
         prog = Progress(n)
         Threads.@threads for i=1:n
+            p0cp = deepcopy(p0)
             results[i] = brute_force_periodogram_wrapper(post, p0cp, periods[i], planet_index)
             next!(prog)
         end
