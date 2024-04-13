@@ -24,7 +24,7 @@ function run_mapfit(post::RVPosterior, p0::Parameters; output_path=nothing)
     p0_vecs = to_vecs(p0)
     ptest = deepcopy(p0)
     pbest = deepcopy(p0)
-    scale_factors = [par.vary ? get_scale(par) : 0 for par in values(p0)]
+    scale_factors = Float64[par.vary ? get_scale(par) : 0 for par in values(p0)]
     obj_wrapper = (x) -> begin
         set_values!(ptest, x)
         return -1 * compute_logaprob(post, ptest)
@@ -81,7 +81,6 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
 
     # Chains size = (n_walkers, n_pars, n_steps)
     # lnLs = (n_walkers, n_steps)
-    #chain, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, n_burn_steps, 1)
     chains, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, n_burn_steps, 1, 2.0; filename="", load=false, save=false)
     
     println("Completed MCMC burn in")
@@ -106,7 +105,6 @@ function run_mcmc(post::RVPosterior, p0::Parameters; n_burn_steps, τrel_thresh=
         ii = (i - 1) * check_every + 1
 
         # Sample
-        #chains, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, check_every, 1)
         chains, lnLs = AffineInvariantMCMC.sample(obj_wrapper, n_walkers, walkers, check_every, 1, 2.0; filename="", load=false, save=false)
         walkers .= chains[:, :, end]
         chains_full = cat(chains_full, permutedims(chains, (3, 2, 1)), dims=1)

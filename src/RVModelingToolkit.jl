@@ -22,6 +22,7 @@ include("kernels.jl")
 include("noise.jl")
 include("qp.jl")
 include("kernels_chromatic.jl")
+include("qpj3.jl")
 
 include("likelihood.jl")
 include("posterior.jl")
