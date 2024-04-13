@@ -20,7 +20,7 @@ function compute_cov_matrix(kernel::ChromaticKernelJ3, pars::Parameters, t1::Abs
     per = pars[par_names[5]].value
 
     # Construct terms
-    decay_term_λ = @. -0.5 * (λ_matrix / exp_length_λ)^2
+    decay_term_λ = @. -0.5 * (λ_matrix / exp_length)^2
     decay_term_t = @. -0.5 * (dist_matrix / exp_length_t)^2
     periodic_term = @. -0.5 * (1 / per_length)^2 * sin(π * dist_matrix / per)^2
     
